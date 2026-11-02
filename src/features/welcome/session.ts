@@ -3,9 +3,9 @@
  * System Settings). The project open when the app last quit is remembered;
  * closing a project explicitly forgets it, so the next start shows the welcome screen.
  */
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { create } from "zustand";
 import { commands, isCancelled, isTauri, type Settings } from "@/platform/ipc";
+import { getPlatform } from "@/platform/adapter";
 import { openProject, startupLaunchHandled, useProject } from "@/platform/project";
 import { connectRemote, parseRemoteLocation, projectLocation } from "@/platform/remote";
 import { notifications } from "@/workbench/contributions";
@@ -98,7 +98,7 @@ export async function reopenLastProject(): Promise<void> {
     return;
   }
   // Secondary windows open the project they were created for (features/app/windows.ts).
-  if (getCurrentWindow().label !== "main") return;
+  if (getPlatform().window.label !== "main") return;
   const path = lastSessionProject();
   if (!path) return;
   let settings: Settings | null = null;

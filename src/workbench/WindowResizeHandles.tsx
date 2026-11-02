@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { usePlatform } from "@/platform/platformInfo";
 import { isTauri } from "@/platform/ipc";
+import { platformWindow } from "@/platform/adapter";
 import styles from "./WindowResizeHandles.module.css";
 
 type Dir = "East" | "North" | "NorthEast" | "NorthWest" | "South" | "SouthEast" | "SouthWest" | "West";
@@ -26,8 +27,7 @@ const EDGES: { dir: Dir; cls: string }[] = [
 ];
 
 async function start(dir: Dir) {
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  await getCurrentWindow().startResizeDragging(dir);
+  await platformWindow.startResizeDragging(dir);
 }
 
 export function WindowResizeHandles() {
@@ -40,15 +40,18 @@ export function WindowResizeHandles() {
     if (!enabled) return;
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    void import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
-      const w = getCurrentWindow();
-      const sync = () =>
-        void Promise.all([w.isMaximized(), w.isFullscreen()]).then(([m, f]) => !disposed && setSized(m || f));
-      sync();
-      const off = await w.onResized(sync);
+
+    const sync = () =>
+      void Promise.all([platformWindow.isMaximized(), platformWindow.isFullscreen()]).then(
+        ([m, f]) => !disposed && setSized(m || f),
+      );
+    sync();
+
+    void platformWindow.onResized(sync).then((off) => {
       if (disposed) off();
       else unlisten = off;
     });
+
     return () => {
       disposed = true;
       unlisten?.();

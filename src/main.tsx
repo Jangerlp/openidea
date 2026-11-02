@@ -6,6 +6,7 @@ import { activateSecondaryWindow, activateWorkbench } from "./workbench/activate
 import { activateFeatures, activateSettingsWindowFeatures, SettingsWindow, settingsWindowParent } from "./features";
 import { installKeyboardDispatcher } from "./platform/keymap";
 import { isTauri } from "./platform/ipc";
+import "./platform/browserDispatch";
 import { hideSplash } from "./platform/splash";
 import { prefetchLazyComponents } from "./ui";
 
@@ -26,7 +27,8 @@ if (settingsParent !== null) {
   activateWorkbench();
   // `vite build --mode perf` is a production bundle for the performance harness (`perf/`).
   const perfBuild = import.meta.env.MODE === "perf";
-  if ((import.meta.env.DEV || perfBuild) && !isTauri()) {
+  const browserBuild = import.meta.env.MODE === "browser";
+  if ((import.meta.env.DEV || perfBuild || browserBuild) && !isTauri()) {
     const { registerDevSamples } = await import("./workbench/devSamples");
     registerDevSamples();
   }

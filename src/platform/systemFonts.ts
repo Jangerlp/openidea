@@ -3,8 +3,7 @@ import { useEffect } from "react";
 import { detectCandidateFonts } from "./candidateFonts";
 import { BUNDLED_MONO_FAMILY, BUNDLED_UI_FAMILY } from "./fonts";
 import { create } from "zustand";
-import { isTauri } from "@tauri-apps/api/core";
-import { call, commands, type FontFamily } from "@/platform/ipc";
+import { call, commands, isTauri, type FontFamily } from "@/platform/ipc";
 
 export type FontStatus = "idle" | "loading" | "ready" | "empty" | "error" | "browser";
 export const bundledFonts: FontFamily[] = [

@@ -1,6 +1,6 @@
 import { tx } from "@/platform/i18n";
 import { create } from "zustand";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { platformEvents } from "@/platform/adapter";
 import { executeAction, getAction } from "@/platform/actions";
 import { call, commands, isTauri, nextRequestId, type RunConfig } from "@/platform/ipc";
 import { parseJavaArgs, resolveJavaModule } from "@/platform/javaLaunch";
@@ -142,8 +142,14 @@ export function updateOnDeactivation(): void {
 
 export function listenForApplicationDeactivation(): () => void {
   if (!isTauri()) return () => {};
-  const listener = getCurrentWebviewWindow().listen("ide://application-deactivated", updateOnDeactivation);
+  let disposed = false;
+  let unlisten: (() => void) | undefined;
+  void platformEvents.listen("ide://application-deactivated", updateOnDeactivation).then((u) => {
+    if (disposed) u();
+    else unlisten = u;
+  });
   return () => {
-    void listener.then((unlisten) => unlisten());
+    disposed = true;
+    unlisten?.();
   };
 }

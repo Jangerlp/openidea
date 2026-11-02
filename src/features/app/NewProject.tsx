@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { call, commands, isTauri } from "@/platform/ipc";
+import { platformDialog, platformPath } from "@/platform/adapter";
 import { useProject } from "@/platform/project";
 import { useTxTemplate } from "@/platform/i18n";
 import { Button, Checkbox, Dialog, Input, T } from "@/ui";
@@ -70,8 +71,8 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (initialLocation()) return;
     // Otherwise the user's home.
-    void import("@tauri-apps/api/path")
-      .then((p) => p.homeDir())
+    void platformPath
+      .homeDir()
       .then(setLocation)
       .catch(() => {});
   }, []);
@@ -82,8 +83,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
 
   const browse = async () => {
     if (!isTauri()) return;
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const picked = await open({
+    const picked = await platformDialog.open({
       directory: true,
       multiple: false,
       title: "Project Location",

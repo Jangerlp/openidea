@@ -7,8 +7,7 @@
  * description of every action (Keymap page, links that run actions) and runs
  * the actions the settings window forwards.
  */
-import { emitTo } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getPlatform, platformEvents } from "@/platform/adapter";
 import { allActions, executeAction, getAction, registerAction, useActions, type Action } from "@/platform/actions";
 import { isTauri } from "@/platform/ipc";
 
@@ -25,7 +24,7 @@ export type ActionInfo = Pick<
 function currentLabel(): string | null {
   if (!isTauri()) return null;
   try {
-    return getCurrentWebviewWindow().label;
+    return getPlatform().window.label;
   } catch {
     return null;
   }
@@ -52,8 +51,8 @@ export function describeActions(actions: Iterable<Action> = allActions()): Actio
 function listen<T>(event: string, handler: (payload: T) => void, onReady?: () => void): () => void {
   let disposed = false;
   let off: (() => void) | undefined;
-  void getCurrentWebviewWindow()
-    .listen<T>(event, ({ payload }) => handler(payload))
+  void platformEvents
+    .listen<T>(event, handler)
     .then((u) => {
       if (disposed) return u();
       off = u;
@@ -71,7 +70,7 @@ export function installSettingsHost(): () => void {
   if (!label || settingsWindowParent(label)) return () => {};
   const target = SETTINGS_PREFIX + label;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const send = () => void emitTo(target, ACTIONS, describeActions()).catch(() => {});
+  const send = () => void platformEvents.emitTo(target, ACTIONS, describeActions()).catch(() => {});
   const schedule = () => {
     clearTimeout(timer);
     timer = setTimeout(send, 100);
@@ -102,11 +101,16 @@ export function installActionProxies(parent: string): () => void {
     proxies.clear();
     for (const info of infos) {
       if (getAction(info.id)) continue;
-      const proxy: Action = { ...info, run: ({ arg }) => void emitTo(parent, EXEC, { id: info.id, arg }) };
+      const proxy: Action = {
+        ...info,
+        run: ({ arg }) => void platformEvents.emitTo(parent, EXEC, { id: info.id, arg }),
+      };
       proxies.set(info.id, registerAction(proxy));
     }
   };
-  const off = listen<ActionInfo[]>(ACTIONS, sync, () => void emitTo(parent, REQUEST_ACTIONS, null).catch(() => {}));
+  const off = listen<ActionInfo[]>(ACTIONS, sync, () =>
+    void platformEvents.emitTo(parent, REQUEST_ACTIONS, null).catch(() => {}),
+  );
   return () => {
     off();
     proxies.forEach((dispose) => dispose());

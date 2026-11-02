@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@/platform/ipc";
 import { guessOs } from "./platformInfo";
 
 /**

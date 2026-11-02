@@ -5,12 +5,14 @@
  * its `{status, data | error}` results into plain promises that reject with
  * `IpcError`, and `onIdeEvent` to subscribe to the backend event bus.
  */
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { commands, type IdeError, type IdeEvent, type RequestId } from "@/bindings";
+import { invoke } from "@/platform/tauriCore";
+import { StreamChannel, createStream } from "./stream";
 
-export { commands };
+export { commands, invoke, StreamChannel, createStream };
 export type * from "@/bindings";
+
+export type UnlistenFn = () => void;
 
 export class IpcError extends Error {
   readonly kind: IdeError["kind"];
@@ -69,13 +71,18 @@ type Handler = (event: IdeEvent) => void;
 const handlers = new Map<string, Set<Handler>>();
 let unlisten: Promise<UnlistenFn> | null = null;
 
-function ensureListening() {
-  if (unlisten || !isTauri()) return;
-  // Window-scoped: a global `listen` also receives events emitted to other windows.
-  unlisten = getCurrentWebviewWindow().listen<IdeEvent>(IDE_EVENT, ({ payload }) => {
+async function startListening(): Promise<UnlistenFn> {
+  const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+  return getCurrentWebviewWindow().listen<IdeEvent>(IDE_EVENT, ({ payload }) => {
     handlers.get(payload.type)?.forEach((h) => h(payload));
     handlers.get("*")?.forEach((h) => h(payload));
   });
+}
+
+function ensureListening() {
+  if (unlisten || !isTauri()) return;
+  // Window-scoped: a global `listen` also receives events emitted to other windows.
+  unlisten = startListening();
 }
 
 /** Resolves once backend events reach this window's handlers. */

@@ -11,7 +11,7 @@
  * `file.newProjectsSettings` (IDEA's Settings for New Projects) edits the
  * global layer only, which new projects inherit.
  */
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { platformEvents, platformWindow } from "@/platform/adapter";
 import { registerActions, type Action } from "@/platform/actions";
 import { call, commands, isTauri } from "@/platform/ipc";
 import { isPopupOpen, lazyComponent } from "@/ui";
@@ -154,7 +154,7 @@ function relaunch(launch: SettingsLaunch | null) {
 function listenLaunch(): () => void {
   let disposed = false;
   let off: (() => void) | undefined;
-  void getCurrentWebviewWindow()
+  void platformEvents
     .listen(LAUNCH_EVENT, () => void takeLaunch().then(relaunch))
     .then((u) => {
       if (disposed) return u();
@@ -197,9 +197,9 @@ export function activateSettingsWindow(parent: string): () => void {
     listenLaunch(),
     installWindowKeys(),
     useSettingsDialog.subscribe((s, prev) => {
-      if (prev.open && !s.open) void getCurrentWebviewWindow().close();
+      if (prev.open && !s.open) void platformWindow.close();
       if (s.newProjects !== prev.newProjects) {
-        void getCurrentWebviewWindow()
+        void platformWindow
           .setTitle(settingsTitle(s.newProjects))
           .catch(() => {});
       }

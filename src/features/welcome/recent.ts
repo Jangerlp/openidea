@@ -1,6 +1,7 @@
 /** Recent projects: loading, filtering, opening and removal. */
 import { create } from "zustand";
 import { executeAction, getAction } from "@/platform/actions";
+import { platformPath } from "@/platform/adapter";
 import { commands, IpcError, isCancelled, isTauri, type RecentProject } from "@/platform/ipc";
 import { openProject, useProject } from "@/platform/project";
 import { connectRemote, forgetRemote, parseRemoteLocation, recentRemotes, remoteLocation } from "@/platform/remote";
@@ -46,7 +47,7 @@ export async function loadRecent() {
   const [projects, info, home] = await Promise.all([
     commands.recentProjects().catch(() => [] as RecentProject[]),
     commands.appInfo().catch(() => null),
-    import("@tauri-apps/api/path").then((m) => m.homeDir()).catch(() => null),
+    platformPath.homeDir().catch(() => null),
   ]);
   useRecent.setState({
     projects: withRemotes(projects),

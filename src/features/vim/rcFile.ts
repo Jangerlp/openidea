@@ -1,6 +1,7 @@
 /** Locating and reading the rc file: `~/.openideavimrc`, else `~/.ideavimrc`. */
 import { create } from "zustand";
 import { call, commands, isTauri } from "@/platform/ipc";
+import { platformPath } from "@/platform/adapter";
 import { parseVimrc, RC_FILES, sourcedPaths, type RcIgnored, type RcParseResult } from "./rc";
 
 export interface RcFile {
@@ -10,10 +11,9 @@ export interface RcFile {
 
 export async function readRcFile(): Promise<RcFile | null> {
   if (!isTauri()) return null;
-  const { homeDir, join } = await import("@tauri-apps/api/path");
-  const home = await homeDir();
+  const home = await platformPath.homeDir();
   for (const name of RC_FILES) {
-    const path = await join(home, name);
+    const path = await platformPath.join(home, name);
     try {
       return { path, text: await call(commands.fsReadText(path)) };
     } catch {
@@ -58,8 +58,8 @@ export async function loadRcFile(): Promise<RcParseResult> {
   const file = await readRcFile().catch(() => null);
   let sources: Map<string, string | null> | undefined;
   if (file) {
-    const { homeDir } = await import("@tauri-apps/api/path");
-    sources = await readSourcedFiles(file.text, (path) => call(commands.fsReadText(path)), await homeDir());
+    const home = await platformPath.homeDir();
+    sources = await readSourcedFiles(file.text, (path) => call(commands.fsReadText(path)), home);
   }
   const result = parseVimrc(file?.text ?? "", sources);
   useVimRc.setState({

@@ -5,14 +5,9 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { t } from "@/platform/i18n";
+import { platformWindow } from "@/platform/adapter";
 import { Icon } from "@/ui";
 import styles from "./TitleBar.module.css";
-
-type AppWindow = import("@tauri-apps/api/window").Window;
-
-function withWindow(run: (w: AppWindow) => unknown) {
-  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => run(getCurrentWindow()));
-}
 
 function CloseButton() {
   return (
@@ -21,7 +16,7 @@ function CloseButton() {
       className={clsx(styles.caption, styles.captionClose)}
       aria-label={t("window.caption.close")}
       title={t("window.caption.close")}
-      onClick={() => withWindow((w) => w.close())}
+      onClick={() => void platformWindow.close()}
     >
       <Icon name="window-close" size={16} />
     </button>
@@ -34,13 +29,15 @@ function SizeButtons() {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    withWindow(async (w) => {
-      const sync = () => void w.isMaximized().then((m) => !disposed && setMaximized(m));
-      sync();
-      const off = await w.onResized(sync);
+
+    const sync = () => void platformWindow.isMaximized().then((m) => !disposed && setMaximized(m));
+    sync();
+
+    void platformWindow.onResized(sync).then((off) => {
       if (disposed) off();
       else unlisten = off;
     });
+
     return () => {
       disposed = true;
       unlisten?.();
@@ -55,7 +52,7 @@ function SizeButtons() {
         className={styles.caption}
         aria-label={t("window.caption.minimize")}
         title={t("window.caption.minimize")}
-        onClick={() => withWindow((w) => w.minimize())}
+        onClick={() => void platformWindow.minimize()}
       >
         <Icon name="window-minimize" size={16} />
       </button>
@@ -64,7 +61,7 @@ function SizeButtons() {
         className={styles.caption}
         aria-label={maximizeLabel}
         title={maximizeLabel}
-        onClick={() => withWindow((w) => w.toggleMaximize())}
+        onClick={() => void platformWindow.toggleMaximize()}
       >
         <Icon name={maximized ? "window-restore" : "window-maximize"} size={16} />
       </button>

@@ -1,8 +1,8 @@
 /** Applies `data-theme` and the accent colour from appearance settings. */
 import { useEffect, useSyncExternalStore } from "react";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { create } from "zustand";
 import { call, commands, isTauri } from "@/platform/ipc";
+import { platformWindow } from "@/platform/adapter";
 import { useProject } from "@/platform/project";
 import { BUILTIN_THEMES, isBuiltinTheme, themeKind, type BuiltinThemeId } from "@/platform/themes";
 import { resolveTokenColor, toHex } from "@/platform/cssColor";
@@ -162,8 +162,8 @@ export function syncWindowBackground() {
   if (!isTauri()) return;
   const color = windowBackgroundColor();
   if (!color) return;
-  getCurrentWebviewWindow()
-    .setBackgroundColor(color)
+  void platformWindow
+    .setBackgroundColor(color as unknown as string)
     .catch(() => {});
 }
 
