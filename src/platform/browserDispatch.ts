@@ -13,7 +13,7 @@ import type { StreamChannel } from "./stream";
 
 export type BrowserCommandHandler<TArgs = unknown, TResult = unknown> = (args: TArgs) => Promise<TResult> | TResult;
 
-const handlers = new Map<string, BrowserCommandHandler<any, any>>();
+const handlers = new Map<string, (args: unknown) => Promise<unknown> | unknown>();
 const cancelledRequests = new Set<number>();
 
 /**
@@ -24,9 +24,10 @@ export function registerBrowserCommand<TArgs = unknown, TResult = unknown>(
   name: string,
   handler: BrowserCommandHandler<TArgs, TResult>,
 ): () => void {
-  handlers.set(name, handler);
+  const wrapped = (args: unknown) => handler(args as TArgs);
+  handlers.set(name, wrapped);
   return () => {
-    if (handlers.get(name) === handler) handlers.delete(name);
+    if (handlers.get(name) === wrapped) handlers.delete(name);
   };
 }
 
@@ -35,10 +36,7 @@ export function registerBrowserCommand<TArgs = unknown, TResult = unknown>(
  * If the command is registered, invokes its handler.
  * If not, rejects with a typed `unavailable` IdeError.
  */
-export async function dispatchBrowserCommand<T = unknown>(
-  cmd: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
+export async function dispatchBrowserCommand<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const handler = handlers.get(cmd);
   if (handler) {
     try {
@@ -48,7 +46,7 @@ export async function dispatchBrowserCommand<T = unknown>(
         throw error;
       }
       const ideError: IdeError = {
-        kind: "unknown",
+        kind: "internal",
         message: error instanceof Error ? error.message : String(error),
         data: null,
       };
@@ -60,7 +58,7 @@ export async function dispatchBrowserCommand<T = unknown>(
   const ideError: IdeError = {
     kind: "unavailable",
     message: `Command "${cmd}" is not available in browser mode.`,
-    data: { command: cmd },
+    data: null,
   };
   throw ideError;
 }
@@ -72,15 +70,9 @@ export async function dispatchBrowserCommand<T = unknown>(
 function registerDefaultHandlers() {
   // App metadata
   registerBrowserCommand<void, AppInfo>("app_info", () => ({
-    name: "OpenIDEA Web",
     version: "0.1.34-web",
     platform: "web",
-    arch: "wasm32",
-    family: "unix",
     configDir: "/config",
-    dataDir: "/data",
-    cacheDir: "/cache",
-    logDir: "/logs",
   }));
 
   // Request cancellation

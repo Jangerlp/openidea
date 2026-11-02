@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { call, commands, invoke, StreamChannel, type IdeError } from "./ipc";
-import {
-  dispatchBrowserCommand,
-  installBrowserDispatch,
-  registerBrowserCommand,
-} from "./browserDispatch";
+import { commands, invoke, StreamChannel, type IdeError } from "./ipc";
+import { dispatchBrowserCommand, installBrowserDispatch, registerBrowserCommand } from "./browserDispatch";
 
 describe("browser command dispatch", () => {
   it("runs without window.__TAURI_INTERNALS__", () => {
@@ -16,7 +12,7 @@ describe("browser command dispatch", () => {
     const info = await commands.appInfo();
     expect(info).toBeDefined();
     expect(info.platform).toBe("web");
-    expect(info.name).toContain("Web");
+    expect(info.version).toContain("web");
   });
 
   it("handles pure computation command (bytes_format)", async () => {

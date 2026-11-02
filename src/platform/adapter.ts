@@ -14,7 +14,7 @@
  */
 
 import { isTauri } from "./ipc";
-import { getCapability, isUnsupported } from "./capabilities";
+import { getCapability } from "./capabilities";
 
 // ---------------------------------------------------------------------------
 // Dialog Interfaces
@@ -39,12 +39,18 @@ export interface PlatformSaveDialogOptions {
   filters?: OpenDialogFilter[];
 }
 
+export type PlatformDialogKind = "error" | "info" | "warning";
+export interface PlatformDialogMessageOptions {
+  title?: string;
+  kind?: PlatformDialogKind;
+}
+
 export interface PlatformDialogAdapter {
   open(options?: PlatformOpenDialogOptions): Promise<string | string[] | null>;
   save(options?: PlatformSaveDialogOptions): Promise<string | null>;
-  ask(message: string, options?: { title?: string; kind?: string }): Promise<boolean>;
-  confirm(message: string, options?: { title?: string; kind?: string }): Promise<boolean>;
-  message(message: string, options?: { title?: string; kind?: string }): Promise<void>;
+  ask(message: string, options?: PlatformDialogMessageOptions): Promise<boolean>;
+  confirm(message: string, options?: PlatformDialogMessageOptions): Promise<boolean>;
+  message(message: string, options?: PlatformDialogMessageOptions): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,7 +142,7 @@ class TauriPlatformAdapter implements PlatformAdapter {
     },
     async message(msg, options) {
       const { message } = await import("@tauri-apps/plugin-dialog");
-      return message(msg, options);
+      await message(msg, options);
     },
   };
 
@@ -326,32 +332,33 @@ class BrowserPlatformAdapter implements PlatformAdapter {
     },
   };
 
-  private eventListeners = new Map<string, Set<(payload: unknown) => void>>();
-
-  readonly events: PlatformEventAdapter = {
-    async listen<T>(event: string, handler: (payload: T) => void) {
-      let set = this.eventListeners.get(event);
-      if (!set) this.eventListeners.set(event, (set = new Set()));
-      const h = handler as (payload: unknown) => void;
-      set.add(h);
-      return () => set.delete(h);
-    },
-    async emit(event, payload) {
-      const set = this.eventListeners.get(event);
-      if (set) {
-        for (const h of set) {
-          try {
-            h(payload);
-          } catch (e) {
-            console.error(`Browser event handler for "${event}" failed:`, e);
+  readonly events: PlatformEventAdapter = (() => {
+    const eventListeners = new Map<string, Set<(payload: unknown) => void>>();
+    return {
+      async listen<T>(event: string, handler: (payload: T) => void) {
+        let set = eventListeners.get(event);
+        if (!set) eventListeners.set(event, (set = new Set()));
+        const h = handler as (payload: unknown) => void;
+        set.add(h);
+        return () => set.delete(h);
+      },
+      async emit(event, payload) {
+        const set = eventListeners.get(event);
+        if (set) {
+          for (const h of set) {
+            try {
+              h(payload);
+            } catch (e) {
+              console.error(`Browser event handler for "${event}" failed:`, e);
+            }
           }
         }
-      }
-    },
-    async emitTo(_target, event, payload) {
-      return this.emit(event, payload);
-    },
-  };
+      },
+      async emitTo(_target, event, payload) {
+        return this.emit(event, payload);
+      },
+    };
+  })();
 }
 
 // ---------------------------------------------------------------------------
@@ -376,9 +383,9 @@ export function setPlatformAdapterForTest(adapter: PlatformAdapter | null): void
 export const platformDialog = {
   open: (options?: PlatformOpenDialogOptions) => getPlatform().dialog.open(options),
   save: (options?: PlatformSaveDialogOptions) => getPlatform().dialog.save(options),
-  ask: (msg: string, opt?: { title?: string; kind?: string }) => getPlatform().dialog.ask(msg, opt),
-  confirm: (msg: string, opt?: { title?: string; kind?: string }) => getPlatform().dialog.confirm(msg, opt),
-  message: (msg: string, opt?: { title?: string; kind?: string }) => getPlatform().dialog.message(msg, opt),
+  ask: (msg: string, opt?: PlatformDialogMessageOptions) => getPlatform().dialog.ask(msg, opt),
+  confirm: (msg: string, opt?: PlatformDialogMessageOptions) => getPlatform().dialog.confirm(msg, opt),
+  message: (msg: string, opt?: PlatformDialogMessageOptions) => getPlatform().dialog.message(msg, opt),
 };
 
 export const platformOpener = {
@@ -390,19 +397,28 @@ export const platformWindow = {
   setTitle: (title: string) => getPlatform().window.setTitle(title),
   close: () => getPlatform().window.close(),
   isMaximized: () => getPlatform().window.isMaximized(),
-  isFullscreen: () => (getPlatform().window.isFullscreen ? getPlatform().window.isFullscreen() : Promise.resolve(false)),
+  isFullscreen: () => {
+    const platformWindow = getPlatform().window;
+    return platformWindow.isFullscreen ? platformWindow.isFullscreen() : Promise.resolve(false);
+  },
   minimize: () => getPlatform().window.minimize(),
   maximize: () => getPlatform().window.maximize(),
   unmaximize: () => getPlatform().window.unmaximize(),
   toggleMaximize: () => getPlatform().window.toggleMaximize(),
   onCloseRequested: (handler: (event: { preventDefault: () => void }) => void | Promise<void>) =>
     getPlatform().window.onCloseRequested(handler),
-  onResized: (handler: () => void) =>
-    getPlatform().window.onResized ? getPlatform().window.onResized(handler) : Promise.resolve(() => {}),
-  startResizeDragging: (direction: string) =>
-    getPlatform().window.startResizeDragging ? getPlatform().window.startResizeDragging(direction) : Promise.resolve(),
-  setBackgroundColor: (color: string) =>
-    getPlatform().window.setBackgroundColor ? getPlatform().window.setBackgroundColor(color) : Promise.resolve(),
+  onResized: (handler: () => void) => {
+    const platformWindow = getPlatform().window;
+    return platformWindow.onResized ? platformWindow.onResized(handler) : Promise.resolve(() => {});
+  },
+  startResizeDragging: (direction: string) => {
+    const platformWindow = getPlatform().window;
+    return platformWindow.startResizeDragging ? platformWindow.startResizeDragging(direction) : Promise.resolve();
+  },
+  setBackgroundColor: (color: string) => {
+    const platformWindow = getPlatform().window;
+    return platformWindow.setBackgroundColor ? platformWindow.setBackgroundColor(color) : Promise.resolve();
+  },
 };
 
 export const platformPath = {

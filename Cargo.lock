@@ -4658,6 +4658,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ide-wasm"
+version = "0.1.34"
+dependencies = [
+ "ide-core",
+ "ide-text",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "ide-web"
 version = "0.1.34"
 dependencies = [

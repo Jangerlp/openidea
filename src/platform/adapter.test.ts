@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getPlatform, platformDialog, platformEvents, platformOpener, platformPath, platformWindow } from "./adapter";
+import { getPlatform, platformDialog, platformEvents, platformPath, platformWindow } from "./adapter";
 
 describe("PlatformAdapter", () => {
   it("provides non-null adapter instances for all domains", () => {

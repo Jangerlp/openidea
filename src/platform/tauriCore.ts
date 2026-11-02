@@ -11,7 +11,8 @@
  */
 
 // Re-export types — these are always safe (erased at runtime).
-export type { InvokeArgs, InvokeOptions } from "../../node_modules/@tauri-apps/api/core.js";
+import type { InvokeArgs, InvokeOptions } from "../../node_modules/@tauri-apps/api/core.js";
+export type { InvokeArgs, InvokeOptions };
 
 const _isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -46,15 +47,17 @@ function browserTransformCallback(_callback: (...args: unknown[]) => unknown, _o
 // (The module is still in the bundle when using `pnpm dev` — that's fine,
 // `@tauri-apps/api/core` itself guards on `__TAURI_INTERNALS__` at call time.)
 
-let _invokeLocal: (cmd: string, args?: Record<string, unknown>, options?: Record<string, unknown>) => Promise<unknown>;
-let _Channel: { new <T>(): { onmessage: (response: T) => void; readonly id: number }; };
+type InvokeLocal = <T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions) => Promise<T>;
+
+let _invokeLocal: InvokeLocal;
+let _Channel: { new <T>(): { onmessage: (response: T) => void; readonly id: number } };
 let _transformCallback: (callback: (...args: unknown[]) => unknown, once?: boolean) => number;
 
 if (_isTauri) {
   // Use the real @tauri-apps/api/core — the Vite alias stops recursion because
   // this file's import path goes through node_modules directly.
   const mod = await import("../../node_modules/@tauri-apps/api/core.js");
-  _invokeLocal = mod.invoke;
+  _invokeLocal = (cmd, args, options) => mod.invoke(cmd, args, options);
   _Channel = mod.Channel;
   _transformCallback = mod.transformCallback;
 } else {
@@ -69,7 +72,7 @@ export { _Channel as Channel, _transformCallback as transformCallback };
 export type InvokeRoute = (
   cmd: string,
   args?: Record<string, unknown>,
-  options?: Record<string, unknown>,
+  options?: InvokeOptions,
 ) => Promise<unknown> | null;
 
 let route: InvokeRoute | null = null;
@@ -78,13 +81,11 @@ export function setInvokeRoute(next: InvokeRoute | null) {
   route = next;
 }
 
-export const invokeLocal = _invokeLocal;
+export function invokeLocal<T = unknown>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
+  return _invokeLocal<T>(cmd, args, options);
+}
 
-export function invoke<T>(
-  cmd: string,
-  args?: Record<string, unknown>,
-  options?: Record<string, unknown>,
-): Promise<T> {
+export function invoke<T>(cmd: string, args?: Record<string, unknown>, options?: InvokeOptions): Promise<T> {
   return (route?.(cmd, args, options) ?? _invokeLocal(cmd, args, options)) as Promise<T>;
 }
 
