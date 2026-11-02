@@ -82,6 +82,10 @@ describe("about", () => {
       ["Configuration", "/cfg"],
     ]);
   });
+
+  it("shows browser platform without inventing a host configuration directory", () => {
+    expect(aboutRows(null, "", "web")).toEqual([["Platform", "Browser"]]);
+  });
 });
 
 describe("prompt", () => {

@@ -32,14 +32,13 @@ export const usePlatform = create<PlatformInfo>(() => {
 });
 
 export async function loadPlatformInfo() {
-  if (!isTauri()) return;
   try {
     const info = await commands.appInfo();
     usePlatform.setState({
       os: info.platform,
       version: info.version,
-      overlayTitleBar: info.platform === "macos",
-      framelessTitleBar: info.platform === "windows" || info.platform === "linux",
+      overlayTitleBar: isTauri() && info.platform === "macos",
+      framelessTitleBar: isTauri() && (info.platform === "windows" || info.platform === "linux"),
     });
   } catch {
     /* keep the user-agent guess */

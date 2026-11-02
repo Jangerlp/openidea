@@ -19,7 +19,11 @@ function osName(os: string): string {
   return v === key ? os : v;
 }
 
-export function aboutRows(b: BuildInfo | null, configDir: string | null): Array<[string, string]> {
+export function aboutRows(
+  b: BuildInfo | null,
+  configDir: string | null,
+  platform: string = guessOs(),
+): Array<[string, string]> {
   const rows: Array<[string, string]> = [];
   if (b) {
     rows.push([translate("app.about.version"), b.version]);
@@ -27,7 +31,7 @@ export function aboutRows(b: BuildInfo | null, configDir: string | null): Array<
     rows.push([translate("app.about.platform"), `${osName(b.os)} ${b.arch}`]);
     rows.push([translate("app.about.runtime"), `Tauri ${b.tauri}`]);
   } else {
-    rows.push([translate("app.about.platform"), osName(guessOs())]);
+    rows.push([translate("app.about.platform"), osName(platform)]);
   }
   if (configDir) rows.push([translate("app.about.configDir"), configDir]);
   return rows;
@@ -47,16 +51,15 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let live = true;
     void buildInfo().then((b) => live && setBuild(b));
-    if (isTauri())
-      void commands
-        .appInfo()
-        .then((a) => live && setApp(a))
-        .catch(() => {});
+    void commands
+      .appInfo()
+      .then((a) => live && setApp(a))
+      .catch(() => {});
     return () => {
       live = false;
     };
   }, []);
-  const rows = aboutRows(build, app?.configDir ?? null);
+  const rows = aboutRows(build, app?.configDir ?? null, app?.platform);
   const copy = () => {
     const text = [t("app.about.title"), ...rows.map(([k, v]) => `${k}: ${v}`)].join("\n");
     void navigator.clipboard?.writeText(text).then(() => setCopied(true));
@@ -83,7 +86,9 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
       <div className={styles.about}>
         <img className={styles.logo} src={logo} alt="" width={64} height={64} />
         <div className={styles.aboutBody}>
-          <div className={clsx(styles.productName, selectableText)}>OpenIDEA {build?.version ?? ""}</div>
+          <div className={clsx(styles.productName, selectableText)}>
+            OpenIDEA {build?.version ?? app?.version ?? ""}
+          </div>
           {build && (
             <div className={clsx(styles.aboutLine, selectableText)}>
               {t("app.about.build")} #{build.build} ({build.profile})
@@ -107,7 +112,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
             <button type="button" className={styles.link} onClick={() => run("help.showLog")}>
               {t("app.action.showLog", { os: build?.os ?? guessOs() })}
             </button>
-            {app && (
+            {app && isTauri() && (
               <button
                 type="button"
                 className={styles.link}

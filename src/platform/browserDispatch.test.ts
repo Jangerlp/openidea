@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import packageJson from "../../package.json";
 import { commands, invoke, StreamChannel, type IdeError } from "./ipc";
 import { dispatchBrowserCommand, installBrowserDispatch, registerBrowserCommand } from "./browserDispatch";
+import { loadPlatformInfo, usePlatform } from "./platformInfo";
 
 describe("browser command dispatch", () => {
   it("runs without window.__TAURI_INTERNALS__", () => {
@@ -12,12 +14,23 @@ describe("browser command dispatch", () => {
     const info = await commands.appInfo();
     expect(info).toBeDefined();
     expect(info.platform).toBe("web");
-    expect(info.version).toContain("web");
+    expect(info.version).toBe(packageJson.version);
+    expect(info.configDir).toBe("");
   });
 
-  it("handles pure computation command (bytes_format)", async () => {
-    const formatted = await dispatchBrowserCommand("bytes_format", { bytes: 2048 });
-    expect(formatted).toBe("2.0 KB");
+  it("loads browser metadata without enabling native title-bar behavior", async () => {
+    const previous = usePlatform.getState();
+    usePlatform.setState({ os: "windows", version: null, overlayTitleBar: true, framelessTitleBar: true });
+
+    await loadPlatformInfo();
+
+    expect(usePlatform.getState()).toMatchObject({
+      os: "web",
+      version: packageJson.version,
+      overlayTitleBar: false,
+      framelessTitleBar: false,
+    });
+    usePlatform.setState(previous);
   });
 
   it("handles request cancellation tracking", async () => {

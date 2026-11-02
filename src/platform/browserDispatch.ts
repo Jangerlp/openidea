@@ -7,6 +7,7 @@
  */
 
 import type { AppInfo, IdeError } from "@/bindings";
+import packageJson from "../../package.json";
 import { isTauri } from "./ipc";
 import { setInvokeRoute } from "./tauriCore";
 import type { StreamChannel } from "./stream";
@@ -70,9 +71,9 @@ export async function dispatchBrowserCommand<T = unknown>(cmd: string, args?: Re
 function registerDefaultHandlers() {
   // App metadata
   registerBrowserCommand<void, AppInfo>("app_info", () => ({
-    version: "0.1.34-web",
+    version: packageJson.version,
     platform: "web",
-    configDir: "/config",
+    configDir: "",
   }));
 
   // Request cancellation
@@ -85,13 +86,6 @@ function registerDefaultHandlers() {
 
   registerBrowserCommand<{ id: number }, boolean>("is_request_cancelled", (args) => {
     return args && typeof args.id === "number" ? cancelledRequests.has(args.id) : false;
-  });
-
-  // Pure byte computation
-  registerBrowserCommand<{ bytes: number }, string>("bytes_format", ({ bytes }) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   });
 
   // Echo test command
