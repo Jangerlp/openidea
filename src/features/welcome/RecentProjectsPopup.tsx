@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { create } from "zustand";
+import { isTauri } from "@/platform/ipc";
 import { useProject } from "@/platform/project";
 import { Dialog, T } from "@/ui";
 import { RecentList } from "./RecentList";
@@ -32,7 +33,7 @@ export function RecentProjectsPopup() {
       className={styles.popup}
     >
       <div className={styles.popupHeader}>
-        <T>Recent Projects</T>
+        <T>{isTauri() ? "Recent Projects" : "Recent Files"}</T>
       </div>
       <RecentList compact autoFocus exclude={current} onOpened={close} className={styles.popupList} />
     </Dialog>

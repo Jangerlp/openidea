@@ -66,6 +66,13 @@ package version and `web` platform, and leaves `configDir` empty because the
 browser has no native configuration directory. Other commands continue to
 reject as explicitly unavailable unless a browser handler is added.
 
+The browser Welcome screen uses the existing selected-file flow and lists
+persisted browser documents as recent files. Reopening a recent file routes to
+the editor; removing it from recents hides it without deleting its stored
+contents. Browser builds do not inject the development-only sample project.
+Project folders, repository cloning, and remote development remain available
+in the Tauri edition and are not yet implemented in the browser edition.
+
 The `bytes` domain is not a pure formatting API: its current commands probe or
 read bytes from native paths. It remains unimplemented for browser paths until
 the browser file adapter supports the required binary operations.

@@ -1,6 +1,7 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import clsx from "clsx";
-import { call, commands, type RecentProject } from "@/platform/ipc";
+import { browserFileId } from "@/platform/browserFileSystem";
+import { call, commands, isTauri, type RecentProject } from "@/platform/ipc";
 import { parseRemoteLocation } from "@/platform/remote";
 import {
   HighlightedText,
@@ -21,9 +22,12 @@ import { tx } from "@/platform/i18n";
 
 /** IDEA's "Remove Recent Project" confirmation, then removes it from the list. */
 export async function askRemoveRecent(project: RecentProject) {
+  const browserFile = browserFileId(project.path) !== null;
   const ok = await confirm({
-    title: "Remove Recent Project",
-    message: tx`Remove '${project.name}' from the list of recent projects?`,
+    title: browserFile ? "Remove Recent File" : "Remove Recent Project",
+    message: browserFile
+      ? tx`Remove '${project.name}' from the list of recent files?`
+      : tx`Remove '${project.name}' from the list of recent projects?`,
     ok: "Remove",
   });
   if (ok) await removeRecent(project.path);
@@ -39,49 +43,64 @@ export function ProjectBadge({ name, className }: { name: string; className?: st
 }
 
 export function recentMenu(project: RecentProject, onOpened?: () => void): MenuItem[] {
-  // A remote project has no local folder.
   const remote = parseRemoteLocation(project.path);
+  const browserFile = browserFileId(project.path) !== null;
   const items: MenuItem[] = [
     {
       id: "open",
       label: "Open",
-      icon: "folder-open",
+      icon: browserFile ? "file" : "folder-open",
       run: () => void openRecent(project).then((ok) => ok && onOpened?.()),
     },
-    remote
-      ? {
-          id: "openInNewWindow",
-          label: "Open in New Window",
-          icon: "folder-open",
-          run: () =>
-            void call(commands.windowOpenRemote(remote.sshConfig, remote.path, true))
-              .then(() => onOpened?.())
-              .catch(() => undefined),
-        }
-      : { kind: "action", action: "file.openInNewWindow", arg: project.path, label: "Open in New Window" },
-    {
-      id: "reveal",
-      label: "Show in Finder",
-      icon: "external-link",
-      run: () =>
-        void import("@tauri-apps/plugin-opener").then((m) => m.revealItemInDir(project.path)).catch(() => undefined),
-    },
+    ...(!browserFile
+      ? [
+          remote
+            ? {
+                id: "openInNewWindow",
+                label: "Open in New Window",
+                icon: "folder-open",
+                run: () =>
+                  void call(commands.windowOpenRemote(remote.sshConfig, remote.path, true))
+                    .then(() => onOpened?.())
+                    .catch(() => undefined),
+              }
+            : {
+                kind: "action" as const,
+                action: "file.openInNewWindow",
+                arg: project.path,
+                label: "Open in New Window",
+              },
+          ...(!remote
+            ? [
+                {
+                  id: "reveal",
+                  label: "Show in Finder",
+                  icon: "external-link",
+                  run: () =>
+                    void import("@tauri-apps/plugin-opener")
+                      .then((m) => m.revealItemInDir(project.path))
+                      .catch(() => undefined),
+                },
+              ]
+            : []),
+        ]
+      : []),
     {
       id: "copy",
-      label: "Copy Path",
+      label: browserFile ? "Copy File Name" : "Copy Path",
       icon: "copy",
-      run: () => void navigator.clipboard?.writeText(project.path).catch(() => undefined),
+      run: () => void navigator.clipboard?.writeText(browserFile ? project.name : project.path).catch(() => undefined),
     },
     { kind: "separator" },
     {
       id: "remove",
-      label: "Remove from Recent Projects…",
+      label: browserFile ? "Remove from Recent Files…" : "Remove from Recent Projects…",
       icon: "close",
       danger: true,
       run: () => void askRemoveRecent(project),
     },
   ];
-  return remote ? items.filter((i) => !("id" in i && i.id === "reveal")) : items;
+  return items;
 }
 
 function relativeTime(ms: number | null): string | null {
@@ -136,7 +155,7 @@ function RecentRow({
           {!compact && when && <span className={styles.when}>{when}</span>}
           <IconButton
             icon="more"
-            title="Project actions"
+            title={browserFileId(m.project.path) ? "File actions" : "Project actions"}
             size="small"
             iconSize={14}
             className={styles.rowMore}
@@ -167,6 +186,7 @@ export interface RecentListProps {
 
 /** Searchable, keyboard-navigable recent projects list (search field keeps focus). */
 export function RecentList({ exclude, compact, autoFocus, onOpened, className, toolbar }: RecentListProps) {
+  const native = isTauri();
   const projects = useRecent((s) => s.projects);
   const home = useRecent((s) => s.home);
   const [query, setQuery] = useState("");
@@ -214,8 +234,8 @@ export function RecentList({ exclude, compact, autoFocus, onOpened, className, t
             setQuery(q);
             setActive(0);
           }}
-          placeholder="Search projects"
-          aria-label="Search recent projects"
+          placeholder={native ? "Search projects" : "Search files"}
+          aria-label={native ? "Search recent projects" : "Search recent files"}
           autoFocus={autoFocus}
           data-autofocus={autoFocus || undefined}
           onKeyDown={onKeyDown}
@@ -224,7 +244,7 @@ export function RecentList({ exclude, compact, autoFocus, onOpened, className, t
         {toolbar}
       </div>
       <List<RecentMatch>
-        aria-label="Recent projects"
+        aria-label={native ? "Recent projects" : "Recent files"}
         items={items}
         getKey={(m) => m.project.path}
         activeIndex={current}

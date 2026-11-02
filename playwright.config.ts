@@ -6,6 +6,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.OPENIDEA_E2E_PORT ?? 1450);
+const BROWSER_PORT = Number(process.env.OPENIDEA_BROWSER_E2E_PORT ?? 1451);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -27,6 +28,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: "**/browserWelcome.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1400, height: 900 },
@@ -35,13 +37,32 @@ export default defineConfig({
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
       },
     },
+    {
+      name: "browser-welcome",
+      testMatch: "**/browserWelcome.spec.ts",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: `http://localhost:${BROWSER_PORT}`,
+        viewport: { width: 1400, height: 900 },
+      },
+    },
   ],
-  webServer: {
-    command: `pnpm exec vite --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-    stdout: "ignore",
-    stderr: "pipe",
-  },
+  webServer: [
+    {
+      command: `pnpm exec vite --port ${PORT} --strictPort`,
+      url: `http://localhost:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+    {
+      command: `pnpm exec vite --mode browser --port ${BROWSER_PORT} --strictPort`,
+      url: `http://localhost:${BROWSER_PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+  ],
 });

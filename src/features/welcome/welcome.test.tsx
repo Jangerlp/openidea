@@ -5,13 +5,16 @@ import type { RecentProject, Settings } from "@/platform/ipc";
 const settingsSet = vi.fn();
 const removeRecentProject = vi.fn();
 const openProject = vi.fn();
+const openFiles = vi.fn();
+const browserState = vi.hoisted(() => ({ tauriMode: true }));
+const browserFiles = vi.hoisted(() => ({ list: vi.fn(), remove: vi.fn() }));
 let recent: RecentProject[] = [];
 
 vi.mock("@/platform/ipc", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/platform/ipc")>();
   return {
     ...real,
-    isTauri: () => true,
+    isTauri: () => browserState.tauriMode,
     commands: {
       ...real.commands,
       recentProjects: async () => recent,
@@ -25,6 +28,13 @@ vi.mock("@/platform/project", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/platform/project")>();
   return { ...real, openProject: (path: string) => openProject(path) };
 });
+vi.mock("@/platform/browserFileSystem", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/platform/browserFileSystem")>();
+  return {
+    ...real,
+    createBrowserFileSystem: () => ({ list: browserFiles.list, remove: browserFiles.remove }),
+  };
+});
 vi.mock("@tauri-apps/api/path", () => ({ homeDir: async () => "/Users/me" }));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({ onDragDropEvent: async () => () => {} }),
@@ -33,7 +43,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
 import { registerActions } from "@/platform/actions";
 import { useProject } from "@/platform/project";
 import { ContextMenuHost } from "@/ui";
-import { registerSettingsPage } from "@/workbench/contributions";
+import { provideEditorService, registerSettingsPage } from "@/workbench/contributions";
 import { MessagesHost } from "@/workbench/messages";
 import { projectInitials } from "@/workbench/projectColor";
 import { handleListKey } from "./ProjectsPage";
@@ -75,6 +85,10 @@ beforeEach(() => {
   settingsSet.mockReset().mockImplementation(async () => ({ status: "ok", data: { appearance: {} } as Settings }));
   removeRecentProject.mockReset().mockResolvedValue({ status: "ok", data: null });
   openProject.mockReset().mockResolvedValue({});
+  openFiles.mockReset();
+  browserFiles.list.mockReset().mockResolvedValue([]);
+  browserFiles.remove.mockReset().mockResolvedValue(undefined);
+  browserState.tauriMode = true;
   useRecent.setState({ projects: [], loaded: false, home: null, version: null, opening: null });
   useProject.setState({ project: null, settings: { appearance: { theme: "light" } } as Settings, opening: false });
 });
@@ -136,6 +150,35 @@ describe("Welcome › Projects", () => {
     await renderWelcome();
     expect(screen.getByText("Welcome to OpenIDEA")).toBeTruthy();
     expect(screen.queryByLabelText("Search projects")).toBeNull();
+  });
+
+  it("opens selected files from the browser welcome page instead of showing sample projects", async () => {
+    browserState.tauriMode = false;
+    recent = [p("unopenable-demo", "/Users/dev/demo")];
+    browserFiles.list.mockResolvedValue([
+      { id: "browser-doc", name: "notes.txt", path: "browser-file:///browser-doc/notes.txt", updatedAt: 123 },
+    ]);
+    provideEditorService({
+      openFile: openFiles,
+      openInput: async () => {},
+      activePath: () => null,
+      activeCursor: () => null,
+      saveAll: async () => {},
+    });
+    const dispose = registerActions([{ id: "file.openFile", title: "Open File", run: openFiles }]);
+
+    await renderWelcome();
+
+    expect(screen.getByText("1.2.3")).toBeTruthy();
+    expect(screen.getByText("notes.txt")).toBeTruthy();
+    expect(screen.queryByText("unopenable-demo")).toBeNull();
+    fireEvent.click(screen.getByRole("option"));
+    await act(async () => {});
+    expect(openFiles).toHaveBeenCalledWith("browser-file:///browser-doc/notes.txt", {
+      focus: true,
+      preview: false,
+    });
+    dispose();
   });
 });
 

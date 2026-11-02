@@ -154,6 +154,23 @@ describe("BrowserFileSystem", () => {
     ]);
   });
 
+  it("removes a file from recents without deleting its saved content", async () => {
+    const store = new MemoryDocumentStore();
+    const fs = new BrowserFileSystem(runtime({ store }));
+    await fs.importAll(
+      JSON.stringify({
+        format: "openidea-browser-files",
+        version: 1,
+        documents: [{ id: "remove-me", name: "notes.txt", text: "saved", updatedAt: 1 }],
+      }),
+    );
+
+    await fs.remove("remove-me");
+
+    await expect(fs.list()).resolves.not.toContainEqual(expect.objectContaining({ id: "delete-from-idb" }));
+    await expect(fs.read("remove-me")).resolves.toMatchObject({ text: "saved" });
+  });
+
   it("persists browser documents across adapter instances in IndexedDB", async () => {
     vi.stubGlobal("indexedDB", fakeIndexedDB);
     try {
@@ -169,6 +186,27 @@ describe("BrowserFileSystem", () => {
       await expect(createBrowserFileSystem().list()).resolves.toMatchObject([
         { id: "persistent", name: "persisted.md", text: "saved text" },
       ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("persists recent-file removal in IndexedDB without deleting the document", async () => {
+    vi.stubGlobal("indexedDB", fakeIndexedDB);
+    try {
+      const fs = createBrowserFileSystem();
+      await fs.importAll(
+        JSON.stringify({
+          format: "openidea-browser-files",
+          version: 1,
+          documents: [{ id: "delete-from-idb", name: "delete.txt", text: "saved", updatedAt: 123 }],
+        }),
+      );
+
+      await fs.remove("delete-from-idb");
+
+      await expect(fs.list()).resolves.not.toContainEqual(expect.objectContaining({ id: "delete-from-idb" }));
+      await expect(fs.read("delete-from-idb")).resolves.toMatchObject({ text: "saved" });
     } finally {
       vi.unstubAllGlobals();
     }

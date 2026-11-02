@@ -42,6 +42,7 @@ export interface StoredDocument {
   name: string;
   text: string;
   updatedAt: number;
+  recent?: boolean;
   handle?: BrowserFileHandle;
 }
 
@@ -271,7 +272,20 @@ export class BrowserFileSystem {
     const records = await this.runtime.store.getAll().catch((error: unknown) => {
       throw storageError(error);
     });
-    return records.sort((a, b) => b.updatedAt - a.updatedAt).map(toDocument);
+    return records
+      .filter((record) => record.recent !== false)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map(toDocument);
+  }
+
+  async remove(id: string): Promise<void> {
+    const record = await this.runtime.store.get(id).catch((error: unknown) => {
+      throw storageError(error);
+    });
+    if (!record) throw new BrowserFileError("notFound", `Browser document "${id}" was not found.`);
+    await this.runtime.store.put({ ...record, recent: false }).catch((error: unknown) => {
+      throw storageError(error);
+    });
   }
 
   async save(id: string, text: string): Promise<"source" | "download"> {
@@ -280,7 +294,7 @@ export class BrowserFileSystem {
     });
     if (!record) throw new BrowserFileError("notFound", `Browser document "${id}" was not found.`);
 
-    const updated = { ...record, text, updatedAt: this.runtime.now() };
+    const updated = { ...record, text, updatedAt: this.runtime.now(), recent: true };
     await this.runtime.store.put(updated).catch((error: unknown) => {
       throw storageError(error);
     });
@@ -342,6 +356,7 @@ export class BrowserFileSystem {
         name: document.name,
         text: document.text,
         updatedAt: document.updatedAt,
+        recent: true,
       };
       await this.runtime.store.put(imported).catch((error: unknown) => {
         throw storageError(error);
@@ -360,7 +375,14 @@ export class BrowserFileSystem {
   }
 
   private async persist(name: string, text: string, handle?: BrowserFileHandle): Promise<BrowserTextDocument> {
-    const record: StoredDocument = { id: this.runtime.createId(), name, text, updatedAt: this.runtime.now(), handle };
+    const record: StoredDocument = {
+      id: this.runtime.createId(),
+      name,
+      text,
+      updatedAt: this.runtime.now(),
+      recent: true,
+      handle,
+    };
     await this.runtime.store.put(record).catch((error: unknown) => {
       throw storageError(error);
     });

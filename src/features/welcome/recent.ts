@@ -5,9 +5,10 @@ import { platformPath } from "@/platform/adapter";
 import { commands, IpcError, isCancelled, isTauri, type RecentProject } from "@/platform/ipc";
 import { openProject, useProject } from "@/platform/project";
 import { connectRemote, forgetRemote, parseRemoteLocation, recentRemotes, remoteLocation } from "@/platform/remote";
+import { browserFileId, createBrowserFileSystem } from "@/platform/browserFileSystem";
 import { tx } from "@/platform/i18n";
 import { fuzzyMatch } from "@/ui";
-import { notifications } from "@/workbench/contributions";
+import { editorService, notifications } from "@/workbench/contributions";
 import { openRemoteProject } from "@/workbench/projectWindow";
 
 interface RecentState {
@@ -27,21 +28,33 @@ export const useRecent = create<RecentState>(() => ({
   opening: null,
 }));
 
-const SAMPLE: RecentProject[] = [
-  {
-    path: "/Users/dev/dev/acme-api",
-    name: "acme-api",
-    openedAtMs: Date.now() - 3_600_000,
-    branch: "feature/order-paging",
-  },
-  { path: "/Users/dev/dev/openidea", name: "openidea", openedAtMs: Date.now() - 86_400_000, branch: "main" },
-  { path: "/Users/dev/oss/tokio", name: "tokio", openedAtMs: Date.now() - 5 * 86_400_000, branch: "master" },
-  { path: "/Users/dev/scratch/py-notes", name: "py-notes", openedAtMs: null, branch: null },
-];
-
 export async function loadRecent() {
   if (!isTauri()) {
-    useRecent.setState({ projects: SAMPLE, loaded: true, home: "/Users/dev", version: "0.1.0-dev" });
+    const [documents, info] = await Promise.all([
+      createBrowserFileSystem()
+        .list()
+        .catch((error: unknown) => {
+          notifications().notify({
+            level: "warning",
+            title: "Cannot load recent files",
+            body: error instanceof Error ? error.message : String(error),
+            key: "welcome.recentFiles",
+          });
+          return [];
+        }),
+      commands.appInfo().catch(() => null),
+    ]);
+    useRecent.setState({
+      projects: documents.map((document) => ({
+        path: document.path,
+        name: document.name,
+        openedAtMs: document.updatedAt,
+        branch: null,
+      })),
+      loaded: true,
+      home: null,
+      version: info?.version ?? null,
+    });
     return;
   }
   const [projects, info, home] = await Promise.all([
@@ -78,6 +91,21 @@ export function remoteDisplay(location: string): string | null {
 }
 
 export async function removeRecent(path: string) {
+  const browserId = browserFileId(path);
+  if (!isTauri() && browserId) {
+    try {
+      await createBrowserFileSystem().remove(browserId);
+      useRecent.setState((s) => ({ projects: s.projects.filter((p) => p.path !== path) }));
+    } catch (error) {
+      notifications().notify({
+        level: "error",
+        title: "Cannot remove recent file",
+        body: error instanceof Error ? error.message : String(error),
+        key: "welcome.recentFiles",
+      });
+    }
+    return;
+  }
   useRecent.setState((s) => ({ projects: s.projects.filter((p) => p.path !== path) }));
   const remote = parseRemoteLocation(path);
   if (remote) {
@@ -93,12 +121,31 @@ export async function removeRecent(path: string) {
 /** Opens a project from the recent list; offers to remove entries whose folder is gone. */
 export async function openRecent(project: Pick<RecentProject, "path" | "name">): Promise<boolean> {
   if (!isTauri()) {
-    notifications().notify({
-      level: "warning",
-      title: "Opening projects requires the desktop app",
-      body: "Run `pnpm tauri dev` to use the file system.",
-    });
-    return false;
+    if (!browserFileId(project.path)) {
+      notifications().notify({
+        level: "warning",
+        title: "Opening project folders requires the desktop app",
+        body: "Open a selected file in the browser, or use the desktop app to open a project.",
+      });
+      return false;
+    }
+    useRecent.setState({ opening: project.path });
+    try {
+      if (!useProject.getState().project) useProject.setState({ lightEdit: true });
+      await editorService().openFile(project.path, { focus: true, preview: false });
+      return true;
+    } catch (error) {
+      notifications().notify({
+        level: "error",
+        title: `Cannot open ${project.name}`,
+        body: error instanceof Error ? error.message : String(error),
+        key: `welcome.open:${project.path}`,
+        actions: [{ label: "Remove from Recent Files", run: () => void removeRecent(project.path) }],
+      });
+      return false;
+    } finally {
+      useRecent.setState({ opening: null });
+    }
   }
   const remote = parseRemoteLocation(project.path);
   if (remote) return openRemote(project, remote);

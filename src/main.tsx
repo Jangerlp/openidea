@@ -28,7 +28,7 @@ if (settingsParent !== null) {
   // `vite build --mode perf` is a production bundle for the performance harness (`perf/`).
   const perfBuild = import.meta.env.MODE === "perf";
   const browserBuild = import.meta.env.MODE === "browser";
-  if ((import.meta.env.DEV || perfBuild || browserBuild) && !isTauri()) {
+  if (((import.meta.env.DEV && !browserBuild) || perfBuild) && !isTauri()) {
     const { registerDevSamples } = await import("./workbench/devSamples");
     registerDevSamples();
   }

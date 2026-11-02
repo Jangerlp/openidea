@@ -59,7 +59,12 @@ export function ProjectPopup({ anchor, onClose }: ProjectPopupProps) {
       query,
       home,
     ).map((m) => ({ kind: "project" as const, open: false, m }));
-    const acts = query ? [] : ACTIONS.filter((a) => actions.has(a.id)).map((a) => ({ kind: "action" as const, ...a }));
+    const availableActions = isTauri()
+      ? ACTIONS
+      : [{ id: "file.openFile", label: "Open Files…", icon: "file" as const }];
+    const acts = query
+      ? []
+      : availableActions.filter((a) => actions.has(a.id)).map((a) => ({ kind: "action" as const, ...a }));
     return [...acts, ...open, ...rest];
   }, [actions, recent, home, openProjects, query]);
   const current = Math.min(active, entries.length - 1);
@@ -114,7 +119,14 @@ export function ProjectPopup({ anchor, onClose }: ProjectPopupProps) {
   const firstRecent = entries.findIndex((e) => e.kind === "project" && !e.open);
 
   return (
-    <Popup open anchor={anchor} onClose={onClose} role="dialog" aria-label="Projects" className={styles.popup}>
+    <Popup
+      open
+      anchor={anchor}
+      onClose={onClose}
+      role="dialog"
+      aria-label={isTauri() ? "Projects" : "Files"}
+      className={styles.popup}
+    >
       <div
         ref={listRef}
         tabIndex={-1}
@@ -122,7 +134,7 @@ export function ProjectPopup({ anchor, onClose }: ProjectPopupProps) {
         onKeyDown={onKeyDown}
         className={styles.inner}
         role="listbox"
-        aria-label={tx("Projects")}
+        aria-label={tx(isTauri() ? "Projects" : "Files")}
       >
         {query && (
           <div className={styles.search} aria-live="polite">

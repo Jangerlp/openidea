@@ -3,6 +3,8 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import clsx from "clsx";
 import { executeAction, useActions } from "@/platform/actions";
 import { shortcutLabel } from "@/platform/keymap";
+import { isTauri } from "@/platform/ipc";
+import { browserFileId } from "@/platform/browserFileSystem";
 import { useProject } from "@/platform/project";
 import { useRemoteProgress } from "@/platform/remote";
 import { stageLabel } from "@/features/remote-dev/model";
@@ -25,25 +27,27 @@ import styles from "./Welcome.module.css";
 import { tx } from "@/platform/i18n";
 
 function HeaderButtons() {
+  const native = isTauri();
   const canClone = useActions((s) => s.actions.has("vcs.clone"));
   const canRemote = useActions((s) => s.actions.has("remote.connect"));
   const opening = useProject((s) => s.opening);
-  const openKey = shortcutLabel("file.openProject");
+  const openAction = native ? "file.openProject" : "file.openFile";
+  const openKey = shortcutLabel(openAction);
   return (
     <div className={styles.headerButtons}>
       <Button
         disabled={opening}
-        onClick={() => void executeAction("file.openProject")}
+        onClick={() => void executeAction(openAction)}
         title={openKey ? tx`Open (${openKey})` : "Open"}
       >
-        <T>Open</T>
+        <T>{native ? "Open" : "Open files"}</T>
       </Button>
-      {canClone && (
+      {native && canClone && (
         <Button onClick={() => void executeAction("vcs.clone")}>
           <T>Clone Repository</T>
         </Button>
       )}
-      {canRemote && (
+      {native && canRemote && (
         <Button disabled={opening} onClick={() => void executeAction("remote.connect")}>
           <T>Remote Development</T>
         </Button>
@@ -54,33 +58,39 @@ function HeaderButtons() {
 
 /** Shown when there are no recent projects (IntelliJ's empty welcome). */
 function Landing() {
-  const canClone = useActions((s) => s.actions.has("vcs.clone"));
-  const canRemote = useActions((s) => s.actions.has("remote.connect"));
+  const native = isTauri();
+  const hasClone = useActions((s) => s.actions.has("vcs.clone"));
+  const hasRemote = useActions((s) => s.actions.has("remote.connect"));
+  const canClone = native && hasClone;
+  const canRemote = native && hasRemote;
   const opening = useProject((s) => s.opening);
-  const shortcut = shortcutLabel("file.openProject");
+  const openAction = native ? "file.openProject" : "file.openFile";
+  const shortcut = shortcutLabel(openAction);
   return (
     <div className={styles.landing}>
       <div className={styles.landingTitle}>
         <T>Welcome to OpenIDEA</T>
       </div>
       <p className={styles.landingText}>
-        {canClone
-          ? tx("Open a folder from disk or clone a repository from version control.")
-          : tx("Open a folder from disk.")}
+        {native
+          ? canClone
+            ? tx("Open a folder from disk or clone a repository from version control.")
+            : tx("Open a folder from disk.")
+          : tx("Open files from your device. Opening project folders requires the desktop app.")}
         <br />
-        <T>You can also drop a folder onto this window.</T>
+        {native && <T>You can also drop a folder onto this window.</T>}
       </p>
       <div className={styles.landingActions}>
         <button
           type="button"
           className={styles.landingAction}
           disabled={opening}
-          onClick={() => void executeAction("file.openProject")}
+          onClick={() => void executeAction(openAction)}
         >
           <span className={styles.landingIcon}>
-            <Icon name="folder-open" size={20} />
+            <Icon name={native ? "folder-open" : "file"} size={20} />
           </span>
-          <T>Open</T>
+          <T>{native ? "Open folder" : "Open files"}</T>
         </button>
         {canClone && (
           <button type="button" className={styles.landingAction} onClick={() => void executeAction("vcs.clone")}>
@@ -106,7 +116,7 @@ function Landing() {
       </div>
       {shortcut && (
         <div className={styles.landingHint}>
-          <T>Open a folder</T> <Kbd>{shortcut}</Kbd>
+          <T>{native ? "Open a folder" : "Open files"}</T> <Kbd>{shortcut}</Kbd>
         </div>
       )}
     </div>
@@ -177,7 +187,7 @@ function ProjectRow({
       ) : (
         <IconButton
           icon="more"
-          title="Project actions"
+          title={browserFileId(m.project.path) ? "File actions" : "Project actions"}
           aria-haspopup="menu"
           iconSize={16}
           className={styles.projectMore}
@@ -209,6 +219,7 @@ export function handleListKey(
 }
 
 export function ProjectsPage() {
+  const native = isTauri();
   const projects = useRecent((s) => s.projects);
   const loaded = useRecent((s) => s.loaded);
   const home = useRecent((s) => s.home);
@@ -260,8 +271,8 @@ export function ProjectsPage() {
             setQuery(q);
             setActive(0);
           }}
-          placeholder="Search projects"
-          aria-label="Search projects"
+          placeholder={native ? "Search projects" : "Search files"}
+          aria-label={native ? "Search projects" : "Search files"}
           aria-controls={`${baseId}-list`}
           aria-activedescendant={items.length ? optionId(current) : undefined}
           autoFocus={!isPopupOpen()}
@@ -274,7 +285,7 @@ export function ProjectsPage() {
       <div
         id={`${baseId}-list`}
         role="listbox"
-        aria-label={tx("Recent projects")}
+        aria-label={tx(native ? "Recent projects" : "Recent files")}
         tabIndex={-1}
         className={styles.projectList}
         onKeyDown={onKeyDown}
