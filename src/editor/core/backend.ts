@@ -24,6 +24,7 @@ import {
 
 import { EditorState } from "@codemirror/state";
 import { customRegions } from "./cm/regions";
+import { browserFileId, createBrowserFileSystem, type BrowserFileSystem } from "@/platform/browserFileSystem";
 
 export type LanguageInfo = LanguageInfo_Serialize;
 
@@ -597,9 +598,28 @@ export function createMemoryBackend(files: Record<string, string> = {}): MemoryB
   return backend;
 }
 
+/** Browser editor backend for explicitly selected files; other paths remain in-memory samples. */
+export function createBrowserDocBackend(fileSystem: BrowserFileSystem = createBrowserFileSystem()): DocBackend {
+  const memory = createMemoryBackend();
+  return {
+    ...memory,
+    async open(path) {
+      const id = browserFileId(path);
+      if (id) memory.files.set(path, (await fileSystem.read(id)).text);
+      return memory.open(path);
+    },
+    async save(doc) {
+      const snapshot = await memory.snapshot(doc);
+      const id = browserFileId(snapshot.path);
+      if (id) await fileSystem.save(id, snapshot.text);
+      await memory.save(doc);
+    },
+  };
+}
+
 let current: DocBackend | null = null;
 
 /** The backend in use: IPC inside Tauri, in-memory in a plain browser. */
 export function docBackend(): DocBackend {
-  return (current ??= isTauri() ? ipcBackend : createMemoryBackend());
+  return (current ??= isTauri() ? ipcBackend : createBrowserDocBackend());
 }

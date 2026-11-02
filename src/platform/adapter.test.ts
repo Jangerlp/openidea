@@ -36,8 +36,9 @@ describe("PlatformAdapter", () => {
     }
   });
 
-  it("browser dialog open warns and returns null", async () => {
-    const res = await platformDialog.open();
-    expect(res).toBeNull();
+  it("reports directory selection as unsupported in the browser", async () => {
+    await expect(platformDialog.open({ directory: true })).rejects.toMatchObject({
+      kind: "unsupported",
+    });
   });
 });

@@ -12,6 +12,7 @@ describe("virtual document URIs", () => {
     expect(isVirtualUri("/Users/me/a.java")).toBe(false);
     expect(isVirtualUri("C:\\src\\a.java")).toBe(false);
     expect(isVirtualUri("file:///a.java")).toBe(false);
+    expect(isVirtualUri("browser-file:///doc-1/notes.txt")).toBe(false);
     expect(isVirtualUri(null)).toBe(false);
   });
 

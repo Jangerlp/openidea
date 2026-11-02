@@ -15,6 +15,7 @@
 
 import { isTauri } from "./ipc";
 import { getCapability } from "./capabilities";
+import { BrowserFileError, browserFilePath, createBrowserFileSystem } from "./browserFileSystem";
 
 // ---------------------------------------------------------------------------
 // Dialog Interfaces
@@ -258,9 +259,13 @@ class BrowserPlatformAdapter implements PlatformAdapter {
   readonly isNative = false;
 
   readonly dialog: PlatformDialogAdapter = {
-    async open(_options) {
-      console.warn("[browser] Native file open dialog is unsupported in the browser runtime.");
-      return null;
+    async open(options) {
+      if (options?.directory) {
+        throw new BrowserFileError("unsupported", "Selecting project directories is not supported in browser mode.");
+      }
+      const files = await createBrowserFileSystem().openTextFiles(options?.multiple ?? false);
+      const paths = files.map((file) => browserFilePath(file.id, file.name));
+      return options?.multiple ? paths : (paths[0] ?? null);
     },
     async save(_options) {
       console.warn("[browser] Native file save dialog is unsupported in the browser runtime.");

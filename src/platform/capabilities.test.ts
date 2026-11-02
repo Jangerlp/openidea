@@ -20,10 +20,13 @@ describe("capabilities", () => {
   });
 
   it("reports available for browser features", () => {
-    expect(isAvailable("storage.indexeddb")).toBe(true);
-    expect(isAvailable("storage.opfs")).toBe(true);
     expect(isAvailable("clipboard.basic")).toBe(true);
     expect(isAvailable("dialog.browser")).toBe(true);
+    if (typeof indexedDB === "undefined") {
+      expect(isUnsupported("storage.indexeddb")).toBe(true);
+    } else {
+      expect(isAvailable("storage.indexeddb")).toBe(true);
+    }
   });
 
   it("reports permission-required for filesystem in browser", () => {

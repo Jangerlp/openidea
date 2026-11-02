@@ -92,7 +92,10 @@ function buildCapabilities(): Map<CapabilityId, Capability> {
     for (const id of ids) map.set(id, available());
   } else {
     // Native features are unavailable in the browser.
-    map.set("filesystem", permissionRequired("Requires File System Access API permission"));
+    map.set(
+      "filesystem",
+      permissionRequired("Select files explicitly; direct writes require File System Access API permission"),
+    );
     map.set("filesystem.watch", unsupported("File system watchers require a native runtime"));
     map.set("process", unsupported("Spawning processes requires a native runtime"));
     map.set("terminal", unsupported("PTY/terminal requires a native runtime"));
@@ -112,8 +115,17 @@ function buildCapabilities(): Map<CapabilityId, Capability> {
     // Browser-provided features are available.
     map.set("clipboard.basic", available());
     map.set("dialog.browser", available());
-    map.set("storage.indexeddb", available());
-    map.set("storage.opfs", available());
+    map.set(
+      "storage.indexeddb",
+      typeof indexedDB !== "undefined" ? available() : unsupported("IndexedDB is unavailable in this browser context"),
+    );
+    const storage = typeof navigator === "undefined" ? undefined : navigator.storage;
+    map.set(
+      "storage.opfs",
+      typeof storage?.getDirectory === "function"
+        ? available()
+        : unsupported("Origin Private File System is unavailable in this browser"),
+    );
   }
 
   return map;

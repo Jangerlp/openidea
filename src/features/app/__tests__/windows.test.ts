@@ -8,6 +8,7 @@ const windowOpenFiles = vi.fn();
 const windowTakeLaunch = vi.fn();
 const cancelClose = vi.fn();
 const notify = vi.fn();
+let tauri = true;
 vi.mock("@/platform/remote", async (original) => ({
   ...(await original<typeof import("@/platform/remote")>()),
   isRemoteWindow: vi.fn(() => false),
@@ -25,7 +26,7 @@ vi.mock("@/platform/ipc", async (orig) => {
   const real = await orig<typeof import("@/platform/ipc")>();
   return {
     ...real,
-    isTauri: () => true,
+    isTauri: () => tauri,
     commands: {
       ...real.commands,
       workspaceAttach: (...a: unknown[]) => workspaceAttach(...a),
@@ -79,6 +80,7 @@ beforeEach(() => {
   cancelClose.mockClear();
   notify.mockClear();
   vi.mocked(isRemoteWindow).mockReturnValue(false);
+  tauri = true;
   opened.length = 0;
   activePath = null;
   useProject.setState({ project: null, lightEdit: false, settings: null } as never);
@@ -185,6 +187,15 @@ describe("loose files (LightEdit)", () => {
     expect(windowOpenFiles).not.toHaveBeenCalled();
     expect(opened).toEqual(["/elsewhere/a.txt (focus)"]);
     expect(useProject.getState().lightEdit).toBe(false);
+  });
+
+  it("opens browser-selected files in browser LightEdit without native window commands", async () => {
+    tauri = false;
+    await openFiles(["browser-file:///doc-1/notes.txt"]);
+    expect(windowOpenFiles).not.toHaveBeenCalled();
+    expect(lightEditOpen).not.toHaveBeenCalled();
+    expect(useProject.getState()).toMatchObject({ project: null, lightEdit: true });
+    expect(opened).toEqual(["browser-file:///doc-1/notes.txt (focus)"]);
   });
 
   it("routes dropped files to LightEdit and the dropped folder to a project", async () => {

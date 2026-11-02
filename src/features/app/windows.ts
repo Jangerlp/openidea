@@ -25,6 +25,7 @@ import { editorService, maybeEditorService, notifications } from "@/workbench/co
 import { chooseProjectWindow } from "@/workbench/projectWindow";
 import { cycleWindowTab } from "@/platform/windowGroups";
 import { showWorkspaceDialog } from "./WorkspaceDialog";
+import { platformDialog } from "@/platform/adapter";
 
 export const LAUNCH_EVENT = "openidea://launch";
 
@@ -74,10 +75,14 @@ async function openInEditor(files: readonly string[]): Promise<void> {
 async function openFilesHere(files: readonly string[]): Promise<void> {
   const s = useProject.getState();
   if (!s.project && !s.lightEdit) {
-    try {
-      await openLightEdit(files[0]!);
-    } catch (e) {
-      return openFailed(files[0]!, e);
+    if (isTauri()) {
+      try {
+        await openLightEdit(files[0]!);
+      } catch (e) {
+        return openFailed(files[0]!, e);
+      }
+    } else {
+      useProject.setState({ project: null, lightEdit: true });
     }
   }
   await openInEditor(files);
@@ -92,6 +97,7 @@ export async function openFiles(files: readonly string[]): Promise<void> {
   if (!files.length) return;
   const s = useProject.getState();
   if (s.project && !isRemoteWindow()) return openInEditor(files);
+  if (!isTauri()) return openFilesHere(files);
   if (desktopOnly()) return;
   try {
     const here = await call(commands.windowOpenFiles([...files]));
@@ -196,8 +202,12 @@ async function pickFolder(title: string): Promise<string | null> {
 }
 
 async function pickFiles(title: string): Promise<string[]> {
-  const { open } = await import("@tauri-apps/plugin-dialog");
-  const picked = await open({ directory: false, multiple: true, title, defaultPath: defaultProjectDirectory() });
+  const picked = await platformDialog.open({
+    directory: false,
+    multiple: true,
+    title,
+    defaultPath: defaultProjectDirectory(),
+  });
   return picked === null ? [] : Array.isArray(picked) ? picked : [picked];
 }
 
@@ -343,10 +353,7 @@ export function windowActions(): Action[] {
       category: t("app.category.file"),
       icon: "file",
       keywords: ["file", "light edit"],
-      run: async () => {
-        if (desktopOnly()) return;
-        await openFiles(await pickFiles(t("app.window.pickFileTitle")));
-      },
+      run: async () => await openFiles(await pickFiles(t("app.window.pickFileTitle"))),
     },
     {
       // Files and folders dropped on the Welcome screen.

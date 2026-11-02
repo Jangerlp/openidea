@@ -92,7 +92,13 @@ export function relativeDir(root: string, path: string): string {
 export function basename(path: string): string {
   if (isVirtualUri(path)) return virtualName(path);
   const i = path.lastIndexOf("/");
-  return i < 0 ? path : path.slice(i + 1);
+  const name = i < 0 ? path : path.slice(i + 1);
+  if (!path.startsWith("browser-file:///")) return name;
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
 }
 
 export function dirname(path: string): string {

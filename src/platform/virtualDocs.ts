@@ -10,7 +10,8 @@ import { call, commands, type VirtualDocument } from "./ipc";
 /** Server document URIs, including decompiled disk classes; drive letters remain paths. */
 export function isVirtualUri(s: string | null | undefined): boolean {
   const m = /^([a-zA-Z][a-zA-Z0-9+.-]+):/.exec(s ?? "");
-  return !!m && (m[1]!.toLowerCase() !== "file" || isClassFile(s!));
+  const scheme = m?.[1]?.toLowerCase();
+  return !!scheme && ((scheme !== "file" && scheme !== "browser-file") || isClassFile(s!));
 }
 
 /** Last path segment of a URI (without query / fragment), e.g. `SpringApplication.class`. */
