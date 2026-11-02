@@ -4,6 +4,7 @@ mod archive;
 mod bytes;
 mod compare;
 mod encoding;
+mod filesystem;
 mod ops;
 mod rules;
 mod watch;
@@ -27,7 +28,11 @@ pub use compare::{
 use encoding::SNIFF_LEN;
 pub use encoding::{
     LARGE_FILE_THRESHOLD, MAX_OPEN_SIZE, READ_ONLY_THRESHOLD, decode_properties_escapes, encode,
-    encode_properties_ascii, save_properties_text, write_atomic, write_atomic_strict,
+    encode_properties_ascii, load_text_as_with, load_text_via_with_fallback, load_text_with, save_properties_text,
+    save_text_with, write_atomic, write_atomic_strict,
+};
+pub use filesystem::{
+    FileSystem, FileSystemCapabilities, FileSystemEntry, FileSystemEntryKind, FileSystemMetadata, NativeFileSystem,
 };
 pub use rules::ExcludeMatcher;
 pub use watch::{WatchMode, Watcher};
@@ -205,18 +210,7 @@ pub fn load_text(path: &Path) -> IdeResult<LoadedText> {
 /// Like [`load_text`], but text that is neither valid UTF-8 nor marked by a BOM
 /// is decoded as `fallback` (the configured project encoding) instead of guessed.
 pub fn load_text_with_fallback(path: &Path, fallback: Option<&str>) -> IdeResult<LoadedText> {
-    let loaded = encoding::load_text(path)?;
-    match fallback {
-        Some(enc)
-            if !loaded.binary
-                && !loaded.has_bom
-                && loaded.encoding != "utf-8"
-                && !loaded.encoding.starts_with("utf-16") =>
-        {
-            encoding::load_text_as(path, enc).or(Ok(loaded))
-        }
-        _ => Ok(loaded),
-    }
+    encoding::load_text_via_with_fallback(&NativeFileSystem, path, fallback)
 }
 
 /// Like [`load_text`] but decodes with the given encoding instead of detecting it.
@@ -228,8 +222,7 @@ pub fn load_text_as(path: &Path, encoding: &str) -> IdeResult<LoadedText> {
 /// Returns the new mtime in ms. Fails with `InvalidInput` when the text has
 /// characters `encoding` cannot represent (rather than corrupting them).
 pub fn save_text(path: &Path, text: &str, encoding: &str, has_bom: bool) -> IdeResult<f64> {
-    let bytes = encode(text, encoding, has_bom)?;
-    write_atomic(path, &bytes)
+    encoding::save_text_with(&NativeFileSystem, path, text, encoding, has_bom)
 }
 
 /// Creates an empty file (and missing parent directories). Fails with

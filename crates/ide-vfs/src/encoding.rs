@@ -1,6 +1,6 @@
 //! Text decoding / encoding with BOM and charset detection, and atomic writes.
 
-use crate::{LoadedText, mtime_ms};
+use crate::{FileSystem, LoadedText, NativeFileSystem, mtime_ms};
 use encoding_rs::{Encoding, UTF_8, UTF_16BE, UTF_16LE};
 use ide_core::{IdeError, IdeResult};
 use std::fs;
@@ -202,18 +202,15 @@ pub(crate) fn load_text(path: &Path) -> IdeResult<LoadedText> {
             mtime_ms,
         });
     }
-    let meta = fs::metadata(path)?;
-    if meta.is_dir() {
-        return Err(IdeError::invalid(format!("{} is a directory", path.display())));
-    }
-    if meta.len() > MAX_OPEN_SIZE {
-        return Err(IdeError::invalid(format!(
-            "{} is too large to open ({} MiB)",
-            path.display(),
-            meta.len() / (1024 * 1024)
-        )));
-    }
-    let bytes = fs::read(path)?;
+    load_text_with(&NativeFileSystem, path)
+}
+
+/// Loads an ordinary file through the supplied filesystem adapter.
+///
+/// Archive entry paths are handled by the crate's native text loader and are
+/// not part of the adapter contract.
+pub fn load_text_with(filesystem: &dyn FileSystem, path: &Path) -> IdeResult<LoadedText> {
+    let (meta, bytes) = read_file(filesystem, path)?;
     let len = bytes.len() as u64;
     let (text, enc, has_bom, binary) = decode_owned(bytes);
     Ok(LoadedText {
@@ -223,13 +220,57 @@ pub(crate) fn load_text(path: &Path) -> IdeResult<LoadedText> {
         binary,
         large: len > LARGE_FILE_THRESHOLD,
         too_large: len > READ_ONLY_THRESHOLD,
-        mtime_ms: mtime_ms(&meta),
+        mtime_ms: meta.mtime_ms,
     })
+}
+
+fn read_file(filesystem: &dyn FileSystem, path: &Path) -> IdeResult<(crate::FileSystemMetadata, Vec<u8>)> {
+    let meta = filesystem.metadata(path)?;
+    if meta.kind == crate::FileSystemEntryKind::Directory {
+        return Err(IdeError::invalid(format!("{} is a directory", path.display())));
+    }
+    if meta.size > MAX_OPEN_SIZE {
+        return Err(IdeError::invalid(format!(
+            "{} is too large to open ({} MiB)",
+            path.display(),
+            meta.size / (1024 * 1024)
+        )));
+    }
+    let bytes = filesystem.read_bytes(path)?;
+    Ok((meta, bytes))
+}
+
+/// Loads text through the supplied adapter, preferring `fallback` for detected
+/// legacy encodings when no BOM explicitly selects UTF-8/UTF-16.
+pub fn load_text_via_with_fallback(
+    filesystem: &dyn FileSystem,
+    path: &Path,
+    fallback: Option<&str>,
+) -> IdeResult<LoadedText> {
+    let loaded = load_text_with(filesystem, path)?;
+    match fallback {
+        Some(enc)
+            if !loaded.binary
+                && !loaded.has_bom
+                && loaded.encoding != "utf-8"
+                && !loaded.encoding.starts_with("utf-16") =>
+        {
+            if Encoding::for_label(enc.trim().as_bytes()).is_some() {
+                load_text_as_with(filesystem, path, enc)
+            } else {
+                Ok(loaded)
+            }
+        }
+        _ => Ok(loaded),
+    }
 }
 
 /// Loads `path` decoded as `encoding` (a WHATWG label) instead of detecting it
 /// ("Reload with Encoding"). A matching BOM is stripped and reported.
 pub(crate) fn load_text_as(path: &Path, encoding: &str) -> IdeResult<LoadedText> {
+    if crate::split_archive_path(path).is_none() {
+        return load_text_as_with(&NativeFileSystem, path, encoding);
+    }
     let enc = Encoding::for_label(encoding.trim().as_bytes())
         .ok_or_else(|| IdeError::invalid(format!("unknown encoding {encoding:?}")))?;
     let mut loaded = load_text(path)?;
@@ -247,6 +288,28 @@ pub(crate) fn load_text_as(path: &Path, encoding: &str) -> IdeResult<LoadedText>
     loaded.has_bom = has_bom;
     loaded.binary = false;
     Ok(loaded)
+}
+
+/// Loads an ordinary file as the given encoding through the supplied adapter.
+pub fn load_text_as_with(filesystem: &dyn FileSystem, path: &Path, encoding: &str) -> IdeResult<LoadedText> {
+    let enc = Encoding::for_label(encoding.trim().as_bytes())
+        .ok_or_else(|| IdeError::invalid(format!("unknown encoding {encoding:?}")))?;
+    let (meta, bytes) = read_file(filesystem, path)?;
+    let (body, has_bom) = match Encoding::for_bom(&bytes) {
+        Some((bom_enc, len)) if bom_enc == enc => (&bytes[len..], true),
+        _ => (&bytes[..], false),
+    };
+    let (text, _) = enc.decode_without_bom_handling(body);
+    let len = bytes.len() as u64;
+    Ok(LoadedText {
+        text: text.into_owned(),
+        encoding: encoding_label(enc),
+        has_bom,
+        binary: false,
+        large: len > LARGE_FILE_THRESHOLD,
+        too_large: len > READ_ONLY_THRESHOLD,
+        mtime_ms: meta.mtime_ms,
+    })
 }
 
 /// Encodes `text` to bytes in `encoding` (a WHATWG label). Fails rather than
@@ -307,6 +370,17 @@ pub(crate) fn is_atomic_temp(path: &Path) -> bool {
 /// does not allow creating files. Returns the new mtime in ms.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> IdeResult<f64> {
     write_atomic_impl(path, bytes, true)
+}
+
+/// Saves an ordinary file through the supplied filesystem adapter.
+pub fn save_text_with(
+    filesystem: &dyn FileSystem,
+    path: &Path,
+    text: &str,
+    encoding: &str,
+    has_bom: bool,
+) -> IdeResult<f64> {
+    filesystem.write_atomic(path, &encode(text, encoding, has_bom)?)
 }
 
 /// Replaces a file atomically without falling back to truncating it in place.
