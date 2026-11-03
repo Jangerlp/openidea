@@ -60,18 +60,43 @@ Inventory of the 41 IPC command domains from `src-tauri/src/commands/mod.rs` and
 ## PR 7 browser command progress
 
 The domain classification above describes migration targets, not a claim that
-every command in a domain is implemented in the browser. At this stage,
-`app_info` is the only product command migrated end-to-end: it returns the
-package version and `web` platform, and leaves `configDir` empty because the
-browser has no native configuration directory. Other commands continue to
-reject as explicitly unavailable unless a browser handler is added.
+every command in a domain is implemented in the browser. At this stage, `app_info` is the only product IPC command migrated end-to-end:
+it returns the package version and `web` platform, and leaves `configDir`
+empty because the browser has no native configuration directory. The browser
+file and workspace flows below use the browser filesystem/editor adapters
+directly; they do not pretend that the native `fs` or `workspace` IPC
+commands are implemented. Other unregistered commands reject as explicitly
+unavailable.
 
 The browser Welcome screen uses the existing selected-file flow and lists
 persisted browser documents as recent files. Reopening a recent file routes to
 the editor; removing it from recents hides it without deleting its stored
 contents. Browser builds do not inject the development-only sample project.
-Project folders, repository cloning, and remote development remain available
-in the Tauri edition and are not yet implemented in the browser edition.
+Browser workspaces can group multiple user-granted directories. Their handles
+are persisted in IndexedDB and permissions are rechecked when a workspace is
+opened after reload; supported text files can be browsed and opened in the
+editor, with edits saved to the source handle when permission is available.
+Users can create new supported text files in the current workspace directory;
+existing files are not overwritten. Browser file backups can be imported and
+exported as versioned JSON; backups contain document contents but never
+workspace metadata, file handles, or permission grants.
+Browsing and opening request read permission; creating and saving request
+read/write permission only when required.
+Roots with missing or revoked access can be relinked through an explicit
+directory-picker action; the replacement is stored under the same workspace
+root identity, so open workspace documents resolve saves against the new
+handle. Pending edits remain in IndexedDB when a save is denied and are
+restored when the file is reopened.
+Browser workspace text editing is limited to valid UTF-8 files up to 50 MiB.
+Other encodings and larger files are rejected with an explicit explanation;
+binary previews and the native `bytes` commands remain unavailable.
+Browser E2E tests cover multi-root creation, reload restoration, source-file
+save, new-file creation and save, backup import/export, and the unsupported-API
+fallback.
+This does not implement native project services such as language servers,
+VCS, or arbitrary path access; native workspace IPC commands remain
+unavailable in browser mode. Repository cloning and remote development remain
+available in the Tauri edition only.
 
 The `bytes` domain is not a pure formatting API: its current commands probe or
 read bytes from native paths. It remains unimplemented for browser paths until

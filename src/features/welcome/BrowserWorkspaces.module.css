@@ -1,0 +1,146 @@
+.section {
+  flex: none;
+  max-height: 46%;
+  min-height: 140px;
+  overflow: auto;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.heading h2 {
+  flex: 1;
+  margin: 0;
+  color: var(--fg-strong);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.portability {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.list,
+.browser,
+.entries,
+.roots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workspace {
+  padding: 8px 10px;
+  border-radius: var(--radius-popup);
+  background: var(--bg-elev);
+}
+
+.workspaceTitle,
+.root,
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workspaceTitle strong {
+  flex: 1;
+}
+
+.workspaceTitle > span,
+.permissionGranted,
+.hint,
+.path {
+  color: var(--fg-muted);
+  font-size: var(--fs-tiny);
+}
+
+.roots {
+  margin: 8px 0 0 24px;
+}
+
+.root > span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permissionNeeded {
+  color: var(--warning);
+  font-size: var(--fs-tiny);
+}
+
+.browser {
+  padding: 8px;
+  border-radius: var(--radius-popup);
+  background: var(--bg-elev);
+}
+
+.browser select {
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.entry {
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--radius-selection);
+  background: transparent;
+  color: var(--fg-strong);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.entry:hover:not(:disabled) {
+  background: var(--bg-tree-hover);
+}
+
+.entry:disabled {
+  opacity: 0.6;
+}
+
+.hint {
+  margin: 6px 0;
+}
+
+.error {
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: var(--fs-small);
+}
+
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.createForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

@@ -7,6 +7,7 @@ import { isTauri } from "@/platform/ipc";
 import { browserFileId } from "@/platform/browserFileSystem";
 import { useProject } from "@/platform/project";
 import { useRemoteProgress } from "@/platform/remote";
+import { BrowserWorkspaces } from "./BrowserWorkspaces";
 import { stageLabel } from "@/features/remote-dev/model";
 import {
   Button,
@@ -67,59 +68,62 @@ function Landing() {
   const openAction = native ? "file.openProject" : "file.openFile";
   const shortcut = shortcutLabel(openAction);
   return (
-    <div className={styles.landing}>
-      <div className={styles.landingTitle}>
-        <T>Welcome to OpenIDEA</T>
-      </div>
-      <p className={styles.landingText}>
-        {native
-          ? canClone
-            ? tx("Open a folder from disk or clone a repository from version control.")
-            : tx("Open a folder from disk.")
-          : tx("Open files from your device. Opening project folders requires the desktop app.")}
-        <br />
-        {native && <T>You can also drop a folder onto this window.</T>}
-      </p>
-      <div className={styles.landingActions}>
-        <button
-          type="button"
-          className={styles.landingAction}
-          disabled={opening}
-          onClick={() => void executeAction(openAction)}
-        >
-          <span className={styles.landingIcon}>
-            <Icon name={native ? "folder-open" : "file"} size={20} />
-          </span>
-          <T>{native ? "Open folder" : "Open files"}</T>
-        </button>
-        {canClone && (
-          <button type="button" className={styles.landingAction} onClick={() => void executeAction("vcs.clone")}>
-            <span className={styles.landingIcon}>
-              <Icon name="branch" size={20} />
-            </span>
-            <T>Clone Repository</T>
-          </button>
-        )}
-        {canRemote && (
+    <>
+      <div className={styles.landing}>
+        <div className={styles.landingTitle}>
+          <T>Welcome to OpenIDEA</T>
+        </div>
+        <p className={styles.landingText}>
+          {native
+            ? canClone
+              ? tx("Open a folder from disk or clone a repository from version control.")
+              : tx("Open a folder from disk.")
+            : tx("Open files or create a browser workspace; native project tools require the desktop app.")}
+          <br />
+          {native && <T>You can also drop a folder onto this window.</T>}
+        </p>
+        <div className={styles.landingActions}>
           <button
             type="button"
             className={styles.landingAction}
             disabled={opening}
-            onClick={() => void executeAction("remote.connect")}
+            onClick={() => void executeAction(openAction)}
           >
             <span className={styles.landingIcon}>
-              <Icon name="terminal" size={20} />
+              <Icon name={native ? "folder-open" : "file"} size={20} />
             </span>
-            <T>Remote Development</T>
+            <T>{native ? "Open folder" : "Open files"}</T>
           </button>
+          {canClone && (
+            <button type="button" className={styles.landingAction} onClick={() => void executeAction("vcs.clone")}>
+              <span className={styles.landingIcon}>
+                <Icon name="branch" size={20} />
+              </span>
+              <T>Clone Repository</T>
+            </button>
+          )}
+          {canRemote && (
+            <button
+              type="button"
+              className={styles.landingAction}
+              disabled={opening}
+              onClick={() => void executeAction("remote.connect")}
+            >
+              <span className={styles.landingIcon}>
+                <Icon name="terminal" size={20} />
+              </span>
+              <T>Remote Development</T>
+            </button>
+          )}
+        </div>
+        {shortcut && (
+          <div className={styles.landingHint}>
+            <T>{native ? "Open a folder" : "Open files"}</T> <Kbd>{shortcut}</Kbd>
+          </div>
         )}
       </div>
-      {shortcut && (
-        <div className={styles.landingHint}>
-          <T>{native ? "Open a folder" : "Open files"}</T> <Kbd>{shortcut}</Kbd>
-        </div>
-      )}
-    </div>
+      {!native && <BrowserWorkspaces />}
+    </>
   );
 }
 
@@ -306,6 +310,7 @@ export function ProjectsPage() {
           </div>
         )}
       </div>
+      {!native && <BrowserWorkspaces />}
     </div>
   );
 }

@@ -7,7 +7,7 @@ const removeRecentProject = vi.fn();
 const openProject = vi.fn();
 const openFiles = vi.fn();
 const browserState = vi.hoisted(() => ({ tauriMode: true }));
-const browserFiles = vi.hoisted(() => ({ list: vi.fn(), remove: vi.fn() }));
+const browserFiles = vi.hoisted(() => ({ list: vi.fn(), remove: vi.fn(), listWorkspaces: vi.fn(async () => []) }));
 let recent: RecentProject[] = [];
 
 vi.mock("@/platform/ipc", async (importOriginal) => {
@@ -32,7 +32,11 @@ vi.mock("@/platform/browserFileSystem", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/platform/browserFileSystem")>();
   return {
     ...real,
-    createBrowserFileSystem: () => ({ list: browserFiles.list, remove: browserFiles.remove }),
+    createBrowserFileSystem: () => ({
+      list: browserFiles.list,
+      remove: browserFiles.remove,
+      listWorkspaces: browserFiles.listWorkspaces,
+    }),
   };
 });
 vi.mock("@tauri-apps/api/path", () => ({ homeDir: async () => "/Users/me" }));

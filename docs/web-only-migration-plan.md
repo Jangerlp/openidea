@@ -1,11 +1,12 @@
-# Web-only migration plan
+# Browser and hybrid migration plan
 
 ## Goal and constraints
 
-Move the product UI from the Tauri desktop shell to a browser application built
-with React and Rust compiled to `wasm32-unknown-unknown`. Keep changes
-incremental: the current Tauri application must continue to build and work
-until the browser implementation has replaced the relevant behavior.
+Add a browser edition built with React and Rust compiled to
+`wasm32-unknown-unknown`, while keeping the Tauri desktop edition as a
+first-class, permanently supported product. Migrate browser-capable features
+incrementally; do not remove or degrade desktop features to achieve browser
+support.
 
 The browser is not a native host. WASM in a browser cannot directly access
 arbitrary local paths, spawn programs, open a PTY, use native file watchers, or
@@ -17,9 +18,11 @@ Features requiring those capabilities must either:
 2. be explicitly out of scope for the browser edition; or
 3. use a separately deployed remote service, if such a service is approved.
 
-This plan assumes the requested end state is browser plus WASM, not a local
-native companion. Any feature that needs a server must be treated as a product
-scope decision, not silently implemented as a server dependency.
+The target is a hybrid product: browser plus WASM and Tauri desktop, sharing
+feature code where practical and selecting platform-specific implementations
+at explicit boundaries. Remote services are not yet approved; any feature
+that needs one remains gated on a product decision about deployment,
+authentication, trust, and data handling.
 
 ## Current architecture and migration impact
 
@@ -51,18 +54,22 @@ scope decision, not silently implemented as a server dependency.
    operations using browser APIs and user-granted permissions. Capabilities
    must be explicit, since a browser does not grant arbitrary filesystem
    access.
-4. **Tauri remains a temporary compatibility platform** during migration.
-   Platform-specific implementations must be selected behind interfaces, not
-   introduced as scattered environment checks.
-5. **No implicit native backend:** any service-backed feature is out of scope
-   until its deployment, trust boundary, authentication, and data-handling
+4. **Tauri remains a supported desktop platform**, not a temporary migration
+   layer. Platform-specific implementations must be selected behind
+   interfaces, not introduced as scattered environment checks.
+5. **No implicit remote backend:** any service-backed feature is gated until
+   its deployment, trust boundary, authentication, and data-handling
    requirements are approved.
+6. **Browser support currently targets Chrome 122+.** Workspaces depend on
+   the File System Access API and IndexedDB-serializable handles; verify
+   permission behavior on this minimum version and revisit other browsers as
+   a separate compatibility decision.
 
 ## Pull-request sequence
 
-Each PR should be independently reviewable and preserve the existing Tauri path.
-Avoid removing native dependencies or commands while the desktop build still
-uses them.
+Each PR should be independently reviewable and preserve the existing Tauri
+path. Keep native dependencies and commands required by desktop builds; exclude
+them from the browser/WASM bundle and dependency graph where applicable.
 
 ### PR 1 — Establish browser build and feature baseline
 
@@ -171,6 +178,15 @@ unchanged.
 - Select each feature area from the command inventory and migrate its command
   calls to browser/WASM implementations only when its required capabilities
   exist.
+- Browser workspaces group multiple user-granted roots. Store workspace and
+  directory handles in IndexedDB, re-check permission after reload, and retain
+  the selected-file import/download fallback when directory access is
+  unavailable. The current slice supports browsing and editing selected text
+  files and creating new ones without overwriting existing files; it does not
+  imply desktop project, language-server, VCS, or arbitrary path access.
+  Playwright covers multi-root creation, reload restoration, source-file save,
+  new-file creation and save, backup import/export, and the unsupported-API
+  fallback.
 - Prioritize pure features; gate process/terminal, debugger, language-server,
   toolchain, SSH, Docker, native database drivers, and native VCS operations
   until an approved browser-compatible design exists.
@@ -183,20 +199,22 @@ unchanged.
 explicit capability classification; no command is silently stubbed as a
 success.
 
-### PR 8 — Remove Tauri packaging and native-only dependencies
+### PR 8 — Prepare and ship the hybrid release
 
-- Make the browser build the default deployment and remove Tauri runtime,
-  plugins, scripts, generated integration, and native packaging only after the
-  product's required feature set has passed its parity review.
-- Remove native-only Rust crates from the WASM dependency graph; remove them
-  from the repository only if no remaining native/test target requires them.
-- Update CI, development instructions, documentation, and release artifacts.
-- Keep a separate optional native distribution only if product scope explicitly
-  retains it.
+- Publish and support the browser edition alongside the Tauri desktop edition;
+  neither replaces the other by default.
+- Keep Tauri runtime, plugins, scripts, generated integration, native
+  packaging, commands, and crates needed by the desktop edition.
+- Exclude native-only dependencies from the browser/WASM build graph and
+  production browser bundle; remove them from the repository only if no
+  remaining native or test target requires them.
+- Update CI, development instructions, documentation, and release artifacts
+  for both editions.
 
-**Acceptance:** a clean checkout can build and serve the web application
-without Tauri tooling; required CI checks pass; no production browser bundle
-depends on Tauri packages or globals.
+**Acceptance:** a clean checkout can build and serve the browser edition
+without Tauri tooling and can build the desktop edition with its required
+native tooling; required CI checks pass; the production browser bundle does
+not depend on Tauri packages or globals.
 
 ## Dependency review checklist
 
@@ -234,13 +252,9 @@ particular:
 - Do not claim desktop feature parity unless the feature has a viable browser
   implementation and an end-to-end test.
 
-## Decisions required before full feature parity work
+## Decisions required before expanding browser feature scope
 
-1. Which IDE capabilities are mandatory for the first web release, especially
+1. Which IDE capabilities are mandatory for the browser edition, especially
    terminal, language servers, debugger, Git, SSH, and database tools?
-2. Is an authenticated remote service ever allowed, or must all execution and
-   project data remain local to the browser?
-3. Which browsers and minimum versions are supported, particularly for the File
-   System Access API?
-4. Is the Tauri app a temporary migration safety net, or must a desktop edition
-   continue to be maintained?
+2. Is an authenticated remote service allowed for any of those capabilities?
+3. Should support expand beyond Chrome 122+ to other browsers?
